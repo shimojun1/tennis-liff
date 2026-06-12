@@ -1,1 +1,53 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>テニス出欠確認</title>
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+      margin: 0; padding: 0; background: #f5f5f5; color: #333;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; text-align: center;
+    }
+    .msg { padding: 24px; font-size: 15px; line-height: 1.7; }
+    .err { color: #c0392b; }
+  </style>
+</head>
+<body>
+  <div class="msg" id="msg">読み込み中...</div>
 
+  <script>
+    // ▼▼▼ 2か所だけ自分の値に書き換えてください ▼▼▼
+    var LIFF_ID = "2010379953-pb85Fy7Z";
+    var GAS_URL = "ここにGASのexec URLを貼る"; // 例: https://script.google.com/macros/s/AKfy.../exec
+    // ▲▲▲ ここまで ▲▲▲
+
+    (async function () {
+      var msg = document.getElementById("msg");
+      try {
+        await liff.init({ liffId: LIFF_ID });
+
+        if (!liff.isLoggedIn()) {
+          liff.login(); // 未ログインならLINEログインへ（戻ってくる）
+          return;
+        }
+
+        var profile = await liff.getProfile();
+        var userId = profile.userId;
+
+        // 元のクエリ（eventId など）を引き継いだうえで userId を付与
+        var params = new URLSearchParams(window.location.search);
+        params.set("userId", userId);
+
+        window.location.replace(GAS_URL + "?" + params.toString());
+      } catch (e) {
+        msg.className = "msg err";
+        msg.textContent = "LIFFエラー: " + (e && e.message ? e.message : e);
+      }
+    })();
+  </script>
+</body>
+</html>
