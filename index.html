@@ -1,4 +1,6 @@
-<!DOCTYPE html>
+
+
+    <!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
@@ -8,44 +10,92 @@
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
-      margin: 0; padding: 0; background: #f5f5f5; color: #333;
-      display: flex; align-items: center; justify-content: center;
-      min-height: 100vh; text-align: center;
+      margin: 0; padding: 16px; background: #f5f5f5; color: #222;
     }
-    .msg { padding: 24px; font-size: 15px; line-height: 1.7; }
-    .err { color: #c0392b; }
+    h1 { font-size: 18px; margin: 0 0 12px; }
+    ul {
+      list-style: none; padding: 0; margin: 0;
+      background: #fff; border-radius: 8px; overflow: hidden;
+    }
+    li {
+      display: flex; justify-content: space-between;
+      padding: 12px 16px; border-bottom: 1px solid #eee;
+    }
+    li:last-child { border-bottom: none; }
+    .status { font-weight: bold; }
+    .status.attend { color: #1DB446; }
+    .status.absent { color: #FF5551; }
+    .status.pending { color: #AAAAAA; }
+    .empty { text-align: center; color: #999; padding: 24px; }
   </style>
 </head>
 <body>
-  <div class="msg" id="msg">読み込み中...</div>
+  <h1>自分の回答履歴</h1>
+  <ul id="history-list"><li class="empty">読み込み中...</li></ul>
 
   <script>
-    // ▼▼▼ 2か所だけ自分の値に書き換えてください ▼▼▼
+    // ▼▼▼ 自分の値に書き換えてください ▼▼▼
     var LIFF_ID = "2010379953-pb85Fy7Z";
     var GAS_URL = "https://script.google.com/macros/s/AKfycbyM2bBSqgJheZIacNm_f4U7VrsxAk62lv_ZdEbuh8U3hPi3nANoI1an45JBQyarCLxk/exec"; // 例: https://script.google.com/macros/s/AKfy.../exec
     // ▲▲▲ ここまで ▲▲▲
 
+    var STATUS_CLASS = { "参加": "attend", "不参加": "absent", "未定": "pending" };
+
+    // CORSを回避してGASのAPIを呼ぶ（JSONP）
+    function jsonp(url) {
+      return new Promise(function (resolve, reject) {
+        var cb = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+        var script = document.createElement("script");
+        var timer = setTimeout(function () { cleanup(); reject(new Error("timeout")); }, 10000);
+        function cleanup() {
+          clearTimeout(timer);
+          delete window[cb];
+          if (script.parentNode) script.parentNode.removeChild(script);
+        }
+        window[cb] = function (data) { cleanup(); resolve(data); };
+        script.onerror = function () { cleanup(); reject(new Error("network")); };
+        script.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "callback=" + cb;
+        document.body.appendChild(script);
+      });
+    }
+
+    function renderHistory(history) {
+      var list = document.getElementById("history-list");
+      list.innerHTML = "";
+      if (!history || history.length === 0) {
+        list.innerHTML = '<li class="empty">まだ回答履歴がありません</li>';
+        return;
+      }
+      history.forEach(function (h) {
+        var li = document.createElement("li");
+        var label = document.createElement("span");
+        label.textContent = h.label;
+        var status = document.createElement("span");
+        status.textContent = h.status;
+        status.className = "status " + (STATUS_CLASS[h.status] || "");
+        li.appendChild(label);
+        li.appendChild(status);
+        list.appendChild(li);
+      });
+    }
+
     (async function () {
-      var msg = document.getElementById("msg");
+      var list = document.getElementById("history-list");
       try {
         await liff.init({ liffId: LIFF_ID });
-
-        if (!liff.isLoggedIn()) {
-          liff.login(); // 未ログインならLINEログインへ（戻ってくる）
-          return;
-        }
+        if (!liff.isLoggedIn()) { liff.login(); return; }
 
         var profile = await liff.getProfile();
         var userId = profile.userId;
 
-        // 元のクエリ（eventId など）を引き継いだうえで userId を付与
-        var params = new URLSearchParams(window.location.search);
-        params.set("userId", userId);
-
-        window.location.replace(GAS_URL + "?" + params.toString());
+        var data = await jsonp(GAS_URL + "?api=myhistory&userId=" + encodeURIComponent(userId));
+        if (data.error) {
+          list.innerHTML = '<li class="empty">' + data.error + '</li>';
+          return;
+        }
+        renderHistory(data.history);
       } catch (e) {
-        msg.className = "msg err";
-        msg.textContent = "LIFFエラー: " + (e && e.message ? e.message : e);
+        list.innerHTML = '<li class="empty">エラー: ' + (e && e.message ? e.message : e) + '</li>';
       }
     })();
   </script>
