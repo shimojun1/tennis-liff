@@ -20,26 +20,72 @@
       padding: 12px 16px; border-bottom: 1px solid #eee;
     }
     li:last-child { border-bottom: none; }
-    .status { font-weight: bold; }
+    .status { font-weight: bold; white-space: nowrap; padding-left: 12px; }
     .status.attend { color: #1DB446; }
     .status.absent { color: #FF5551; }
     .status.pending { color: #AAAAAA; }
+    .status.unanswered { color: #F5A623; }
     .empty { text-align: center; color: #999; padding: 24px; }
+
+    /* 管理者セクション */
+    #admin { display: none; margin-top: 28px; }
+    .admin-head { display: flex; align-items: center; gap: 8px; }
+    .admin-tag {
+      font-size: 11px; font-weight: bold; color: #fff;
+      background: #27ACB2; border-radius: 4px; padding: 2px 6px;
+    }
+    .event-select {
+      width: 100%; padding: 10px; margin: 12px 0;
+      border-radius: 8px; border: 1px solid #ccc;
+      font-size: 14px; background: #fff; box-sizing: border-box;
+    }
+    .summary {
+      display: flex; gap: 6px; margin-bottom: 12px;
+    }
+    .summary .cell {
+      flex: 1; text-align: center; padding: 8px 0;
+      border-radius: 8px; color: #fff; font-weight: bold; font-size: 13px;
+    }
+    .summary .cell .n { display: block; font-size: 20px; }
+    .cell.attend { background: #1DB446; }
+    .cell.absent { background: #FF5551; }
+    .cell.pending { background: #AAAAAA; }
+    .cell.unanswered { background: #F5A623; }
   </style>
 </head>
 <body>
   <h1>自分の回答履歴</h1>
   <ul id="history-list"><li class="empty">読み込み中...</li></ul>
 
+  <div id="admin">
+    <div class="admin-head">
+      <h1 style="margin:0;">みんなの出欠</h1>
+      <span class="admin-tag">管理者</span>
+    </div>
+    <select class="event-select" id="event-select"></select>
+    <div class="summary">
+      <div class="cell attend"><span class="n" id="c-attend">0</span>参加</div>
+      <div class="cell absent"><span class="n" id="c-absent">0</span>不参加</div>
+      <div class="cell pending"><span class="n" id="c-pending">0</span>未定</div>
+      <div class="cell unanswered"><span class="n" id="c-unans">0</span>未回答</div>
+    </div>
+    <ul id="roster-list"></ul>
+  </div>
+
   <script>
     // ▼▼▼ 自分の値に書き換えてください ▼▼▼
     var LIFF_ID = "2010379953-pb85Fy7Z";
-    var GAS_URL = "https://script.google.com/macros/s/AKfycbyM2bBSqgJheZIacNm_f4U7VrsxAk62lv_ZdEbuh8U3hPi3nANoI1an45JBQyarCLxk/exec"; // 例: https://script.google.com/macros/s/AKfy.../exec
+    var GAS_URL = "ここにGASのexec URLを貼る"; // 例: https://script.google.com/macros/s/AKfy.../exec
+    var ADMIN_USER_ID = "U4232e2b08ca43363cee26159aa76b441"; // 管理者(あなた)のLINE userId
     // ▲▲▲ ここまで ▲▲▲
 
-    var STATUS_CLASS = { "参加": "attend", "不参加": "absent", "未定": "pending" };
+    var STATUS_CLASS = {
+      "参加": "attend",
+      "不参加": "absent",
+      "未定": "pending",
+      "未回答": "unanswered"
+    };
 
-    // CORSを回避してGASのAPIを呼ぶ（JSONP）
     function jsonp(url) {
       return new Promise(function (resolve, reject) {
         var cb = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
@@ -57,24 +103,67 @@
       });
     }
 
+    function makeRow(name, statusText) {
+      var li = document.createElement("li");
+      var label = document.createElement("span");
+      label.textContent = name;
+      var status = document.createElement("span");
+      status.textContent = statusText;
+      status.className = "status " + (STATUS_CLASS[statusText] || "unanswered");
+      li.appendChild(label);
+      li.appendChild(status);
+      return li;
+    }
+
     function renderHistory(history) {
       var list = document.getElementById("history-list");
       list.innerHTML = "";
       if (!history || history.length === 0) {
-        list.innerHTML = '<li class="empty">まだ回答履歴がありません</li>';
+        list.innerHTML = '<li class="empty">イベントがありません</li>';
         return;
       }
-      history.forEach(function (h) {
-        var li = document.createElement("li");
-        var label = document.createElement("span");
-        label.textContent = h.label;
-        var status = document.createElement("span");
-        status.textContent = h.status;
-        status.className = "status " + (STATUS_CLASS[h.status] || "");
-        li.appendChild(label);
-        li.appendChild(status);
-        list.appendChild(li);
+      history.forEach(function (h) { list.appendChild(makeRow(h.label, h.status)); });
+    }
+
+    function renderRoster(data) {
+      var roster = data.roster || [];
+      var counts = { "参加": 0, "不参加": 0, "未定": 0, "未回答": 0 };
+      var list = document.getElementById("roster-list");
+      list.innerHTML = "";
+      if (roster.length === 0) {
+        list.innerHTML = '<li class="empty">メンバーがいません</li>';
+      }
+      roster.forEach(function (r) {
+        counts[r.status] = (counts[r.status] || 0) + 1;
+        list.appendChild(makeRow(r.displayName, r.status));
       });
+      document.getElementById("c-attend").textContent = counts["参加"];
+      document.getElementById("c-absent").textContent = counts["不参加"];
+      document.getElementById("c-pending").textContent = counts["未定"];
+      document.getElementById("c-unans").textContent = counts["未回答"];
+    }
+
+    async function loadRoster(eventId) {
+      var url = GAS_URL + "?api=eventroster" + (eventId ? "&eventId=" + encodeURIComponent(eventId) : "");
+      var data = await jsonp(url);
+      if (data.error) return;
+      renderRoster(data);
+    }
+
+    async function initAdmin() {
+      document.getElementById("admin").style.display = "block";
+      var data = await jsonp(GAS_URL + "?api=events");
+      var events = data.events || [];
+      var select = document.getElementById("event-select");
+      select.innerHTML = "";
+      events.forEach(function (ev) {
+        var opt = document.createElement("option");
+        opt.value = ev.eventId;
+        opt.textContent = ev.label;
+        select.appendChild(opt);
+      });
+      select.onchange = function () { loadRoster(select.value); };
+      await loadRoster(select.value); // 先頭(最新)を表示
     }
 
     (async function () {
@@ -86,12 +175,16 @@
         var profile = await liff.getProfile();
         var userId = profile.userId;
 
-        var data = await jsonp(GAS_URL + "?api=myhistory&userId=" + encodeURIComponent(userId));
-        if (data.error) {
-          list.innerHTML = '<li class="empty">' + data.error + '</li>';
-          return;
+        var hist = await jsonp(GAS_URL + "?api=myhistory&userId=" + encodeURIComponent(userId));
+        if (hist.error) {
+          list.innerHTML = '<li class="empty">' + hist.error + '</li>';
+        } else {
+          renderHistory(hist.history);
         }
-        renderHistory(data.history);
+
+        if (userId === ADMIN_USER_ID) {
+          await initAdmin();
+        }
       } catch (e) {
         list.innerHTML = '<li class="empty">エラー: ' + (e && e.message ? e.message : e) + '</li>';
       }
