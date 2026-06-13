@@ -11,14 +11,8 @@
       margin: 0; padding: 16px; background: #f5f5f5; color: #222;
     }
     h1 { font-size: 18px; margin: 0 0 12px; }
-    ul {
-      list-style: none; padding: 0; margin: 0;
-      background: #fff; border-radius: 8px; overflow: hidden;
-    }
-    li {
-      display: flex; justify-content: space-between;
-      padding: 12px 16px; border-bottom: 1px solid #eee;
-    }
+    ul { list-style: none; padding: 0; margin: 0; background: #fff; border-radius: 8px; overflow: hidden; }
+    li { display: flex; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #eee; }
     li:last-child { border-bottom: none; }
     .status { font-weight: bold; white-space: nowrap; padding-left: 12px; }
     .status.attend { color: #1DB446; }
@@ -27,29 +21,33 @@
     .status.unanswered { color: #F5A623; }
     .empty { text-align: center; color: #999; padding: 24px; }
 
-    /* 管理者セクション */
     #admin { display: none; margin-top: 28px; }
-    .admin-head { display: flex; align-items: center; gap: 8px; }
-    .admin-tag {
-      font-size: 11px; font-weight: bold; color: #fff;
-      background: #27ACB2; border-radius: 4px; padding: 2px 6px;
+    .admin-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .admin-tag { font-size: 11px; font-weight: bold; color: #fff; background: #27ACB2; border-radius: 4px; padding: 2px 6px; }
+
+    .create-toggle {
+      width: 100%; padding: 12px; margin: 8px 0 4px;
+      border: 1px dashed #27ACB2; background: #fff; color: #27ACB2;
+      border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer;
     }
-    .event-select {
-      width: 100%; padding: 10px; margin: 12px 0;
-      border-radius: 8px; border: 1px solid #ccc;
-      font-size: 14px; background: #fff; box-sizing: border-box;
+    .create-form { background: #fff; border-radius: 8px; padding: 14px; margin-bottom: 16px; }
+    .create-form label { display: block; font-size: 13px; color: #555; margin-bottom: 12px; }
+    .create-form input, .create-form select {
+      display: block; width: 100%; box-sizing: border-box; margin-top: 4px;
+      padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 15px; background: #fff;
     }
-    .summary {
-      display: flex; gap: 6px; margin-bottom: 12px;
+    .create-submit {
+      width: 100%; padding: 12px; border: none; background: #27ACB2; color: #fff;
+      border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer;
     }
-    .summary .cell {
-      flex: 1; text-align: center; padding: 8px 0;
-      border-radius: 8px; color: #fff; font-weight: bold; font-size: 13px;
-    }
+    .create-msg { margin-top: 10px; font-size: 13px; color: #555; min-height: 18px; }
+
+    .event-select { width: 100%; padding: 10px; margin: 12px 0; border-radius: 8px; border: 1px solid #ccc; font-size: 14px; background: #fff; box-sizing: border-box; }
+    .summary { display: flex; gap: 6px; margin-bottom: 12px; }
+    .summary .cell { flex: 1; text-align: center; padding: 8px 0; border-radius: 8px; color: #fff; font-weight: bold; font-size: 13px; }
     .summary .cell .n { display: block; font-size: 20px; }
     .cell.attend { background: #1DB446; }
     .cell.absent { background: #FF5551; }
-    .cell.pending { background: #AAAAAA; }
     .cell.unanswered { background: #F5A623; }
   </style>
 </head>
@@ -59,14 +57,33 @@
 
   <div id="admin">
     <div class="admin-head">
-      <h1 style="margin:0;">みんなの出欠</h1>
+      <h1 style="margin:0;">管理者メニュー</h1>
       <span class="admin-tag">管理者</span>
     </div>
+
+    <button id="toggle-create" class="create-toggle">＋ 新しい練習を作る</button>
+    <div id="create-form" class="create-form" style="display:none;">
+      <label>日付<input type="date" id="f-date" /></label>
+      <label>開始時刻<select id="f-start"></select></label>
+      <label>終了時刻<select id="f-end"></select></label>
+      <label>場所(任意)<input type="text" id="f-place" placeholder="例: ◯◯コート" /></label>
+      <label>回答締切
+        <select id="f-deadline">
+          <option value="">締切なし</option>
+          <option value="prev21">前日 21:00</option>
+          <option value="day7">当日 7:00</option>
+          <option value="d3">3日前 21:00</option>
+        </select>
+      </label>
+      <button id="f-submit" class="create-submit">この内容で作成・通知</button>
+      <div id="f-msg" class="create-msg"></div>
+    </div>
+
+    <h1>みんなの出欠</h1>
     <select class="event-select" id="event-select"></select>
     <div class="summary">
       <div class="cell attend"><span class="n" id="c-attend">0</span>参加</div>
       <div class="cell absent"><span class="n" id="c-absent">0</span>不参加</div>
-      <div class="cell pending"><span class="n" id="c-pending">0</span>未定</div>
       <div class="cell unanswered"><span class="n" id="c-unans">0</span>未回答</div>
     </div>
     <ul id="roster-list"></ul>
@@ -76,26 +93,20 @@
     // ▼▼▼ 自分の値に書き換えてください ▼▼▼
     var LIFF_ID = "2010379953-pb85Fy7Z";
     var GAS_URL = "https://script.google.com/macros/s/AKfycbyM2bBSqgJheZIacNm_f4U7VrsxAk62lv_ZdEbuh8U3hPi3nANoI1an45JBQyarCLxk/exec"; // 例: https://script.google.com/macros/s/AKfy.../exec
-    var ADMIN_USER_ID = "U4232e2b08ca43363cee26159aa76b441"; // 管理者(あなた)のLINE userId
+    var ADMIN_USER_ID = "U4232e2b08ca43363cee26159aa76b441";
     // ▲▲▲ ここまで ▲▲▲
 
-    var STATUS_CLASS = {
-      "参加": "attend",
-      "不参加": "absent",
-      "未定": "pending",
-      "未回答": "unanswered"
-    };
+    var STATUS_CLASS = { "参加": "attend", "不参加": "absent", "未定": "pending", "未回答": "unanswered" };
+    var WD = ["日", "月", "火", "水", "木", "金", "土"];
+
+    function pad(n) { return (n < 10 ? "0" : "") + n; }
 
     function jsonp(url) {
       return new Promise(function (resolve, reject) {
         var cb = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
         var script = document.createElement("script");
-        var timer = setTimeout(function () { cleanup(); reject(new Error("timeout")); }, 10000);
-        function cleanup() {
-          clearTimeout(timer);
-          delete window[cb];
-          if (script.parentNode) script.parentNode.removeChild(script);
-        }
+        var timer = setTimeout(function () { cleanup(); reject(new Error("timeout")); }, 12000);
+        function cleanup() { clearTimeout(timer); delete window[cb]; if (script.parentNode) script.parentNode.removeChild(script); }
         window[cb] = function (data) { cleanup(); resolve(data); };
         script.onerror = function () { cleanup(); reject(new Error("network")); };
         script.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "callback=" + cb;
@@ -110,36 +121,30 @@
       var status = document.createElement("span");
       status.textContent = statusText;
       status.className = "status " + (STATUS_CLASS[statusText] || "unanswered");
-      li.appendChild(label);
-      li.appendChild(status);
+      li.appendChild(label); li.appendChild(status);
       return li;
     }
 
     function renderHistory(history) {
       var list = document.getElementById("history-list");
       list.innerHTML = "";
-      if (!history || history.length === 0) {
-        list.innerHTML = '<li class="empty">イベントがありません</li>';
-        return;
-      }
+      if (!history || history.length === 0) { list.innerHTML = '<li class="empty">予定がありません</li>'; return; }
       history.forEach(function (h) { list.appendChild(makeRow(h.label, h.status)); });
     }
 
     function renderRoster(data) {
       var roster = data.roster || [];
-      var counts = { "参加": 0, "不参加": 0, "未定": 0, "未回答": 0 };
+      var counts = { "参加": 0, "不参加": 0, "未回答": 0 };
       var list = document.getElementById("roster-list");
       list.innerHTML = "";
-      if (roster.length === 0) {
-        list.innerHTML = '<li class="empty">メンバーがいません</li>';
-      }
+      if (roster.length === 0) list.innerHTML = '<li class="empty">メンバーがいません</li>';
       roster.forEach(function (r) {
-        counts[r.status] = (counts[r.status] || 0) + 1;
+        if (counts[r.status] === undefined) counts[r.status] = 0;
+        counts[r.status]++;
         list.appendChild(makeRow(r.displayName, r.status));
       });
       document.getElementById("c-attend").textContent = counts["参加"];
       document.getElementById("c-absent").textContent = counts["不参加"];
-      document.getElementById("c-pending").textContent = counts["未定"];
       document.getElementById("c-unans").textContent = counts["未回答"];
     }
 
@@ -151,19 +156,81 @@
     }
 
     async function initAdmin() {
-      document.getElementById("admin").style.display = "block";
       var data = await jsonp(GAS_URL + "?api=events");
       var events = data.events || [];
       var select = document.getElementById("event-select");
       select.innerHTML = "";
       events.forEach(function (ev) {
         var opt = document.createElement("option");
-        opt.value = ev.eventId;
-        opt.textContent = ev.label;
+        opt.value = ev.eventId; opt.textContent = ev.label;
         select.appendChild(opt);
       });
       select.onchange = function () { loadRoster(select.value); };
-      await loadRoster(select.value); // 先頭(最新)を表示
+      if (events.length > 0) await loadRoster(select.value);
+      else renderRoster({ roster: [] });
+    }
+
+    function buildTimeOptions(sel) {
+      for (var h = 6; h <= 22; h++) {
+        for (var m = 0; m < 60; m += 30) {
+          var v = pad(h) + ":" + pad(m);
+          var o = document.createElement("option");
+          o.value = v; o.textContent = v;
+          sel.appendChild(o);
+        }
+      }
+    }
+
+    function fmtYMD(dt) { return dt.getFullYear() + "-" + pad(dt.getMonth() + 1) + "-" + pad(dt.getDate()); }
+
+    function setupCreateForm(userId) {
+      buildTimeOptions(document.getElementById("f-start"));
+      buildTimeOptions(document.getElementById("f-end"));
+      document.getElementById("f-start").value = "09:00";
+      document.getElementById("f-end").value = "11:00";
+
+      document.getElementById("toggle-create").onclick = function () {
+        var f = document.getElementById("create-form");
+        f.style.display = (f.style.display === "none" || !f.style.display) ? "block" : "none";
+      };
+
+      document.getElementById("f-submit").onclick = async function () {
+        var msg = document.getElementById("f-msg");
+        var date = document.getElementById("f-date").value;
+        var start = document.getElementById("f-start").value;
+        var end = document.getElementById("f-end").value;
+        var place = document.getElementById("f-place").value.trim();
+        var dl = document.getElementById("f-deadline").value;
+
+        if (!date) { msg.textContent = "日付を選んでください"; return; }
+
+        var p = date.split("-"), y = +p[0], mo = +p[1], d = +p[2];
+        var wd = WD[new Date(y, mo - 1, d).getDay()];
+        var label = mo + "/" + d + "(" + wd + ") テニス" + (place ? "@" + place : "");
+        var datetime = start + "-" + end;
+        var endTime = date + " " + end;
+
+        var deadline = "";
+        if (dl === "prev21") deadline = fmtYMD(new Date(y, mo - 1, d - 1)) + " 21:00";
+        else if (dl === "day7") deadline = date + " 07:00";
+        else if (dl === "d3") deadline = fmtYMD(new Date(y, mo - 1, d - 3)) + " 21:00";
+
+        msg.textContent = "作成中...";
+        try {
+          var res = await jsonp(GAS_URL + "?api=createevent"
+            + "&userId=" + encodeURIComponent(userId)
+            + "&label=" + encodeURIComponent(label)
+            + "&datetime=" + encodeURIComponent(datetime)
+            + "&deadline=" + encodeURIComponent(deadline)
+            + "&endTime=" + encodeURIComponent(endTime));
+          if (res.error) { msg.textContent = "エラー: " + res.error; return; }
+          msg.textContent = "作成しました：「" + label + "」をLINEに通知しました";
+          document.getElementById("f-place").value = "";
+          await initAdmin();
+        } catch (e) {
+          msg.textContent = "エラー: " + (e && e.message ? e.message : e);
+        }
+      };
     }
 
     (async function () {
@@ -176,13 +243,12 @@
         var userId = profile.userId;
 
         var hist = await jsonp(GAS_URL + "?api=myhistory&userId=" + encodeURIComponent(userId));
-        if (hist.error) {
-          list.innerHTML = '<li class="empty">' + hist.error + '</li>';
-        } else {
-          renderHistory(hist.history);
-        }
+        if (hist.error) list.innerHTML = '<li class="empty">' + hist.error + '</li>';
+        else renderHistory(hist.history);
 
         if (userId === ADMIN_USER_ID) {
+          document.getElementById("admin").style.display = "block";
+          setupCreateForm(userId);
           await initAdmin();
         }
       } catch (e) {
